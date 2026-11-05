@@ -21,6 +21,18 @@ const state = {
   active: 'dashboard',
   records: [],
   saleProducts: [],
+  saleCategories: [],
+  saleCustomers: [],
+  saleCart: [],
+  saleSearch: '',
+  saleCategory: 'all',
+  saleDiscount: '0',
+  saleTax: '0',
+  saleAmountPaid: '',
+  salePaymentMethod: 'cash',
+  saleCustomerId: '',
+  saleNotice: '',
+  returnToSaleAfterProduct: false,
   stats: null,
   recentSales: [],
   lowStock: [],
@@ -50,7 +62,7 @@ const formFields = {
     ['unit', 'Unit', 'select', false, ['piece', 'pack', 'carton', 'kg', 'gram', 'litre', 'metre', 'service']],
     ['cost_price', 'Cost price', 'number'], ['selling_price', 'Selling price', 'number', true],
     ['stock_quantity', 'Opening stock', 'number'], ['reorder_level', 'Low-stock alert level', 'number'],
-    ['description', 'Description', 'textarea']
+    ['track_stock', 'Track stock quantities', 'checkbox'], ['description', 'Description', 'textarea']
   ],
   categories: [['name', 'Category name', 'text', true], ['description', 'Description', 'textarea']],
   customers: [
@@ -321,7 +333,7 @@ function listMarkup(module) {
   return `
     <div class="page-heading"><div><span class="eyebrow">BUSINESS OPERATIONS</span><h1>${esc(title)}</h1><p>Manage your ${esc(title.toLowerCase())} in one place.</p></div><div class="heading-actions">${tableId === 'sales' ? `<button class="button primary" data-action="new-sale">＋ New sale</button>` : tableId === 'invoices' ? `<button class="button primary" data-action="new-invoice">＋ New invoice</button>` : canCreate ? `<button class="button primary" data-action="new-record" data-value="${tableId}">＋ Add ${singular(title)}</button>` : ''}</div></div>
     <div class="panel records-panel"><div class="records-toolbar"><div class="record-count"><b>${rows.length}</b><span>records</span></div><div class="toolbar-right"><div class="search-box"><span>⌕</span><input id="record-search" placeholder="Search ${esc(title.toLowerCase())}" value="${esc(state.search)}" /></div><button class="button secondary small" data-action="reload">↻ Refresh</button></div></div>
-    ${rows.length ? `<div class="table-wrap"><table><thead><tr>${headers.map(h => `<th>${h[1].toUpperCase()}</th>`).join('')}<th class="actions-col">ACTIONS</th></tr></thead><tbody>${rows.map(row => `<tr>${headers.map(([key]) => `<td>${displayCell(key, row[key])}</td>`).join('')}<td class="row-actions">${tableId === 'products' ? `<button class="table-action" data-action="adjust-stock" data-id="${esc(row.$id)}" data-name="${esc(row.name)}">Adjust stock</button>` : ''}${tableId === 'invoices' && !['paid','cancelled'].includes(row.status) ? `<button class="table-action" data-action="invoice-payment" data-id="${esc(row.$id)}" data-total="${esc(row.total_amount)}" data-paid="${esc(row.amount_paid)}">Add payment</button>` : ''}${['categories','customers','suppliers','bookings'].includes(tableId) ? `<button class="table-action danger-text" data-action="delete-record" data-id="${esc(row.$id)}" data-table="${tableId}">Delete</button>` : '<span class="muted-dash">—</span>'}</td></tr>`).join('')}</tbody></table></div>` : emptyState('⌕', 'Nothing here yet', `New ${esc(title.toLowerCase())} will appear in this list.`, canCreate ? `<button class="button primary small" data-action="${tableId === 'sales' ? 'new-sale' : tableId === 'invoices' ? 'new-invoice' : 'new-record'}" data-value="${tableId}">＋ Add your first ${singular(title)}</button>` : '')}
+    ${rows.length ? `<div class="table-wrap"><table><thead><tr>${headers.map(h => `<th>${h[1].toUpperCase()}</th>`).join('')}<th class="actions-col">ACTIONS</th></tr></thead><tbody>${rows.map(row => `<tr>${headers.map(([key]) => `<td>${displayCell(key, row[key])}</td>`).join('')}<td class="row-actions">${tableId === 'products' ? `<button class="table-action" data-action="adjust-stock" data-id="${esc(row.$id)}" data-name="${esc(row.name)}">Adjust stock</button>` : ''}${tableId === 'invoices' && !['paid','cancelled'].includes(row.status) ? `<button class="table-action" data-action="invoice-payment" data-id="${esc(row.$id)}" data-total="${esc(row.total_amount)}" data-paid="${esc(row.amount_paid)}">Add payment</button>` : ''}${['categories','customers','suppliers','bookings'].includes(tableId) ? `<button class="table-action danger-text" data-action="delete-record" data-id="${esc(row.$id)}" data-table="${tableId}">Delete</button>` : '<span class="muted-dash">—</span>'}</td></tr>`).join('')}</tbody></table></div>` : tableId === 'products' ? emptyState('▤', 'Your product catalogue is empty', 'Add the products or services you sell. They will appear automatically in Sales & POS.', '<button class="button primary small" data-action="new-record" data-value="products">＋ Add your first product</button>') : emptyState('⌕', 'Nothing here yet', `New ${esc(title.toLowerCase())} will appear in this list.`, canCreate ? `<button class="button primary small" data-action="${tableId === 'sales' ? 'new-sale' : tableId === 'invoices' ? 'new-invoice' : 'new-record'}" data-value="${tableId}">＋ Add your first ${singular(title)}</button>` : '')}
     </div>`;
 }
 
@@ -332,8 +344,9 @@ function singular(value) {
 function fieldMarkup(field) {
   const [key, label, type, required = false, options = []] = field;
   const value = type === 'date' && key === 'expense_date' ? new Date().toISOString().slice(0, 10) : '';
-  if (type === 'textarea') return `<label class="${type === 'textarea' ? 'wide' : ''}">${label}<textarea name="${key}" rows="2" placeholder="${label}" ${required ? 'required' : ''}></textarea></label>`;
+  if (type === 'textarea') return `<label class="wide">${label}<textarea name="${key}" rows="2" placeholder="${label}" ${required ? 'required' : ''}></textarea></label>`;
   if (type === 'select') return `<label>${label}<select name="${key}">${options.map(o => `<option value="${esc(o)}">${esc(o[0].toUpperCase() + o.slice(1))}</option>`).join('')}</select></label>`;
+  if (type === 'checkbox') return `<label class="check-label product-stock-toggle"><input type="hidden" name="${key}" value="false"><input type="checkbox" name="${key}" value="true" checked> ${label}</label>`;
   return `<label>${label}<input name="${key}" type="${type}" ${['number'].includes(type) ? 'min="0" step="0.01"' : ''} ${value ? `value="${value}"` : ''} ${required ? 'required' : ''} placeholder="${label}" /></label>`;
 }
 
@@ -348,17 +361,202 @@ function openRecordModal(tableId) {
   modalMarkup(title, 'Enter the details below to save this record.', `<form id="record-form" data-table="${tableId}" class="modal-form"><div class="form-grid">${fields.map(fieldMarkup).join('')}</div><div class="modal-actions"><button type="button" class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" type="submit">Save record <span>→</span></button></div></form>`);
 }
 
-function openSaleModal() {
-  const products = state.saleProducts || [];
-  modalMarkup('Record a sale', 'Select products and record the amount received.', `<form id="sale-form" class="modal-form"><div id="sale-lines"><div class="sale-line"><label class="wide">Product<select name="productId" required>${products.map(p => `<option value="${esc(p.$id)}">${esc(p.name)} · ${money(p.selling_price)} (${Number(p.stock_quantity || 0)} in stock)</option>`).join('')}</select></label><label>Quantity<input name="quantity" type="number" min="0.01" step="0.01" value="1" required /></label></div></div><button type="button" class="text-button add-line" data-action="add-sale-line">＋ Add another product</button><div class="form-grid compact-grid"><label>Discount<input name="discountAmount" type="number" min="0" step="0.01" value="0" /></label><label>Tax<input name="taxAmount" type="number" min="0" step="0.01" value="0" /></label><label>Amount received<input name="amountPaid" type="number" min="0" step="0.01" placeholder="Leave blank for full payment" /></label><label>Payment method<select name="paymentMethod"><option value="cash">Cash</option><option value="bank transfer">Bank transfer</option><option value="POS">POS</option><option value="card">Card</option><option value="other">Other</option></select></label></div><div class="modal-actions"><button type="button" class="button secondary" data-action="close-modal">Cancel</button><button class="button primary" type="submit">Save sale <span>→</span></button></div></form>`);
-  if (!products.length) {
-    document.querySelector('#sale-lines').innerHTML = emptyState('▤', 'No products available', 'Add at least one product before recording a sale.', '<button type="button" class="button secondary small" data-action="goto-products">Go to products</button>');
-    document.querySelector('#sale-form button[type="submit"]').disabled = true;
+function saleTotals() {
+  const subtotal = state.saleCart.reduce((sum, item) => sum + Number(item.product.selling_price || 0) * item.quantity, 0);
+  const discount = Math.max(0, Number(state.saleDiscount || 0));
+  const tax = Math.max(0, Number(state.saleTax || 0));
+  const total = Math.max(0, subtotal - discount + tax);
+  const received = state.saleAmountPaid === '' ? total : Math.max(0, Number(state.saleAmountPaid || 0));
+  return { subtotal, discount, tax, total, received, amountPaid: Math.min(received, total), change: state.salePaymentMethod === 'cash' ? Math.max(0, received - total) : 0, due: Math.max(0, total - Math.min(received, total)) };
+}
+
+function saleCatalogMarkup() {
+  const search = String(state.saleSearch || '').trim().toLowerCase();
+  const categoryId = state.saleCategory || 'all';
+  const visible = state.saleProducts.filter(product => {
+    const searchable = [product.name, product.sku, product.barcode, product.description].join(' ').toLowerCase();
+    return (!search || searchable.includes(search)) && (categoryId === 'all' || product.category_id === categoryId);
+  });
+  const categoryButtons = ['<button type="button" class="pos-category-chip ' + (categoryId === 'all' ? 'active' : '') + '" data-action="pos-category" data-value="all">All items</button>']
+    .concat(state.saleCategories.map(category => '<button type="button" class="pos-category-chip ' + (categoryId === category.$id ? 'active' : '') + '" data-action="pos-category" data-value="' + esc(category.$id) + '">' + esc(category.name) + '</button>'))
+    .join('');
+  if (!state.saleProducts.length) {
+    return '<div class="pos-empty-catalog"><div class="pos-empty-icon">▤</div><h3>Your product catalogue is empty</h3><p>Add the products or services you sell. They will appear here automatically when you record a sale.</p><button type="button" class="button primary" data-action="add-first-pos-product">＋ Add your first product</button><small>You only need a name and selling price to get started.</small></div>';
   }
+  if (!visible.length) return '<div class="pos-category-filter">' + categoryButtons + '</div><div class="pos-no-results"><b>No matching products</b><p>Try another product name, SKU or barcode, or choose a different category.</p></div>';
+  const cards = visible.map(product => {
+    const inCart = state.saleCart.find(item => item.product.$id === product.$id);
+    const quantity = inCart ? inCart.quantity : 0;
+    const stock = Math.max(0, Number(product.stock_quantity || 0));
+    const outOfStock = Boolean(product.track_stock) && stock <= quantity;
+    const category = state.saleCategories.find(item => item.$id === product.category_id);
+    const stockText = product.track_stock ? stock + ' in stock' : 'Service / no stock tracking';
+    return '<button type="button" class="pos-product-tile" data-action="pos-add-product" data-id="' + esc(product.$id) + '" ' + (outOfStock ? 'disabled' : '') + '>' +
+      '<span class="pos-product-initial">' + esc(initials(product.name)) + '</span>' +
+      '<span class="pos-product-name">' + esc(product.name) + '</span>' +
+      '<span class="pos-product-meta">' + esc(product.sku || (category ? category.name : stockText)) + '</span>' +
+      '<strong>' + money(product.selling_price) + '</strong>' +
+      '<small class="' + (outOfStock ? 'out-of-stock' : 'in-stock') + '">' + (outOfStock ? 'Out of stock' : stockText) + '</small>' +
+      (quantity ? '<span class="pos-in-cart">' + quantity + ' in cart</span>' : '') +
+      '</button>';
+  }).join('');
+  return '<div class="pos-category-filter">' + categoryButtons + '</div><div class="pos-product-grid">' + cards + '</div>';
+}
+
+function saleCartMarkup() {
+  if (!state.saleCart.length) return '<div class="pos-cart-empty"><span>＋</span><b>Your sale is empty</b><p>Choose a product from the catalogue to add it here.</p></div>';
+  return state.saleCart.map(item => {
+    const product = item.product;
+    const stock = Math.max(0, Number(product.stock_quantity || 0));
+    const canAddMore = !product.track_stock || item.quantity < stock;
+    return '<div class="pos-cart-line">' +
+      '<div class="pos-cart-line-info"><b>' + esc(product.name) + '</b><small>' + money(product.selling_price) + ' each</small></div>' +
+      '<div class="pos-cart-line-controls"><button type="button" aria-label="Reduce quantity" data-action="pos-qty-down" data-id="' + esc(product.$id) + '">−</button><span>' + item.quantity + '</span><button type="button" aria-label="Increase quantity" data-action="pos-qty-up" data-id="' + esc(product.$id) + '" ' + (canAddMore ? '' : 'disabled') + '>+</button></div>' +
+      '<strong class="pos-cart-line-total">' + money(Number(product.selling_price || 0) * item.quantity) + '</strong>' +
+      '<button type="button" class="pos-remove-item" aria-label="Remove item" data-action="pos-remove-item" data-id="' + esc(product.$id) + '">×</button>' +
+      '</div>';
+  }).join('');
+}
+
+function renderSaleCatalog() {
+  const catalog = document.querySelector('#pos-products');
+  if (catalog) catalog.innerHTML = saleCatalogMarkup();
+}
+
+function renderSaleTotals() {
+  const totals = saleTotals();
+  const updateText = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = value; };
+  updateText('pos-subtotal', money(totals.subtotal));
+  updateText('pos-discount-value', money(totals.discount));
+  updateText('pos-tax-value', money(totals.tax));
+  updateText('pos-total', money(totals.total));
+  updateText('pos-amount-due', money(totals.due));
+  updateText('pos-change-due', money(totals.change));
+  const invalidDiscount = totals.discount > totals.subtotal;
+  const rawReceived = state.saleAmountPaid === '' ? totals.total : Number(state.saleAmountPaid);
+  const invalidReceived = !Number.isFinite(rawReceived) || rawReceived < 0;
+  const excessNonCash = state.salePaymentMethod !== 'cash' && rawReceived > totals.total;
+  const feedback = document.querySelector('#pos-payment-feedback');
+  if (feedback) {
+    feedback.textContent = invalidDiscount ? 'Discount cannot be greater than the subtotal.' : invalidReceived ? 'Enter a valid amount received.' : excessNonCash ? 'Amount received cannot exceed the total for this payment method.' : totals.change > 0 ? 'Give this change to the customer.' : totals.due > 0 ? 'The remaining balance will be recorded as unpaid.' : 'Payment complete.';
+    feedback.className = 'pos-payment-feedback ' + (invalidDiscount || invalidReceived || excessNonCash ? 'error' : 'help');
+  }
+  const submit = document.querySelector('#pos-submit-sale');
+  if (submit) submit.disabled = !state.saleCart.length || invalidDiscount || invalidReceived || excessNonCash;
+}
+
+function renderSaleCart() {
+  const lines = document.querySelector('#pos-cart-lines');
+  if (lines) lines.innerHTML = saleCartMarkup();
+  renderSaleTotals();
+}
+
+function addProductToSale(productId) {
+  const product = state.saleProducts.find(item => item.$id === productId);
+  if (!product) return;
+  const existing = state.saleCart.find(item => item.product.$id === productId);
+  const nextQuantity = (existing?.quantity || 0) + 1;
+  const stock = Math.max(0, Number(product.stock_quantity || 0));
+  if (product.track_stock && nextQuantity > stock) {
+    state.saleNotice = 'There is not enough stock for ' + product.name + '.';
+    const message = document.querySelector('#pos-scan-feedback'); if (message) message.textContent = state.saleNotice;
+    return;
+  }
+  if (existing) existing.quantity = nextQuantity;
+  else state.saleCart.push({ product, quantity: 1 });
+  state.saleNotice = product.name + ' added to the sale.';
+  const message = document.querySelector('#pos-scan-feedback'); if (message) message.textContent = state.saleNotice;
+  renderSaleCatalog(); renderSaleCart();
+}
+
+function changeSaleQuantity(productId, change) {
+  const item = state.saleCart.find(entry => entry.product.$id === productId);
+  if (!item) return;
+  const next = item.quantity + change;
+  if (next < 1) state.saleCart = state.saleCart.filter(entry => entry.product.$id !== productId);
+  else {
+    const stock = Math.max(0, Number(item.product.stock_quantity || 0));
+    if (change > 0 && item.product.track_stock && next > stock) {
+      state.saleNotice = 'Only ' + stock + ' units of ' + item.product.name + ' are available.';
+      const message = document.querySelector('#pos-scan-feedback'); if (message) message.textContent = state.saleNotice;
+      return;
+    }
+    item.quantity = next;
+  }
+  renderSaleCatalog(); renderSaleCart();
+}
+
+function addSaleProductByCode(value) {
+  const code = String(value || '').trim().toLowerCase();
+  if (!code) return;
+  const product = state.saleProducts.find(item => String(item.barcode || '').trim().toLowerCase() === code || String(item.sku || '').trim().toLowerCase() === code);
+  if (!product) {
+    state.saleNotice = 'No product matched that barcode or SKU.';
+    const message = document.querySelector('#pos-scan-feedback'); if (message) message.textContent = state.saleNotice;
+    return;
+  }
+  addProductToSale(product.$id);
+  const input = document.querySelector('#pos-barcode'); if (input) input.value = '';
+}
+
+function openSaleModal() {
+  const customerOptions = ['<option value="">Walk-in customer</option>'].concat(state.saleCustomers.map(customer => '<option value="' + esc(customer.$id) + '">' + esc(customer.name) + (customer.phone ? ' · ' + esc(customer.phone) : '') + '</option>')).join('');
+  const content =
+    '<form id="sale-form" class="pos-form">' +
+      '<div class="pos-workspace">' +
+        '<section class="pos-catalog-panel">' +
+          '<div class="pos-tools">' +
+            '<label class="pos-search-field"><span>⌕</span><input id="pos-search" type="search" placeholder="Search products, SKU or barcode" autocomplete="off"></label>' +
+            '<label class="pos-barcode-field"><span>▦</span><input id="pos-barcode" type="text" placeholder="Scan barcode or enter SKU, then press Enter" autocomplete="off"></label>' +
+          '</div>' +
+          '<div id="pos-scan-feedback" class="pos-scan-feedback">' + esc(state.saleNotice || 'A USB barcode scanner can be used here like a keyboard.') + '</div>' +
+          '<div id="pos-products" class="pos-products-area">' + saleCatalogMarkup() + '</div>' +
+        '</section>' +
+        '<aside class="pos-cart-panel">' +
+          '<div class="pos-cart-heading"><div><span class="eyebrow">CHECKOUT</span><h3>Current sale</h3></div><button type="button" class="text-button" data-action="pos-clear-cart" ' + (state.saleCart.length ? '' : 'disabled') + '>Clear cart</button></div>' +
+          '<div id="pos-cart-lines" class="pos-cart-lines">' + saleCartMarkup() + '</div>' +
+          '<div class="pos-sale-fields">' +
+            '<label class="wide">Customer (optional)<select id="pos-customer">' + customerOptions + '</select></label>' +
+            '<div class="pos-two-fields"><label>Discount<input id="pos-discount" type="number" min="0" step="0.01" value="' + esc(state.saleDiscount) + '"></label><label>Tax<input id="pos-tax" type="number" min="0" step="0.01" value="' + esc(state.saleTax) + '"></label></div>' +
+            '<label>Amount received<input id="pos-amount-paid" type="number" min="0" step="0.01" value="' + esc(state.saleAmountPaid) + '" placeholder="Blank = full payment"></label>' +
+            '<label>Payment method<select id="pos-payment-method"><option value="cash" selected>Cash</option><option value="bank transfer">Bank transfer</option><option value="POS">POS terminal</option><option value="card">Card</option><option value="other">Other</option></select></label>' +
+          '</div>' +
+          '<div class="pos-summary">' +
+            '<div><span>Subtotal</span><b id="pos-subtotal">' + money(saleTotals().subtotal) + '</b></div>' +
+            '<div><span>Discount</span><b id="pos-discount-value">' + money(saleTotals().discount) + '</b></div>' +
+            '<div><span>Tax</span><b id="pos-tax-value">' + money(saleTotals().tax) + '</b></div>' +
+            '<div class="pos-summary-total"><span>Total to pay</span><b id="pos-total">' + money(saleTotals().total) + '</b></div>' +
+            '<div class="pos-balance-row"><span>Balance due</span><b id="pos-amount-due">' + money(saleTotals().due) + '</b></div>' +
+            '<div class="pos-balance-row change"><span>Change to return</span><b id="pos-change-due">' + money(saleTotals().change) + '</b></div>' +
+            '<p id="pos-payment-feedback" class="pos-payment-feedback help">Payment complete.</p>' +
+          '</div>' +
+        '</aside>' +
+      '</div>' +
+      '<div class="pos-footer"><button type="button" class="button secondary" data-action="close-modal">Cancel</button><span class="pos-footer-hint">Stock updates automatically when the sale is saved.</span><button id="pos-submit-sale" class="button primary" type="submit" ' + (state.saleCart.length ? '' : 'disabled') + '>Complete sale <span>→</span></button></div>' +
+    '</form>';
+  modalMarkup('New sale', 'Select items, adjust quantities and complete the checkout.', content);
+  document.querySelector('.modal')?.classList.add('pos-modal');
+  renderSaleTotals();
 }
 
 async function openSaleWithProducts() {
-  state.saleProducts = (await businessRequest('list_records', { tableId: 'products', limit: 100 })).records || [];
+  const [productsResult, categoriesResult, customersResult] = await Promise.all([
+    businessRequest('list_records', { tableId: 'products', limit: 100 }),
+    businessRequest('list_records', { tableId: 'categories', limit: 100 }),
+    businessRequest('list_records', { tableId: 'customers', limit: 100 })
+  ]);
+  state.saleProducts = (productsResult.records || []).filter(item => item.status !== 'inactive').sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  state.saleCategories = categoriesResult.records || [];
+  state.saleCustomers = customersResult.records || [];
+  state.saleCart = [];
+  state.saleSearch = '';
+  state.saleCategory = 'all';
+  state.saleDiscount = '0';
+  state.saleTax = '0';
+  state.saleAmountPaid = '';
+  state.salePaymentMethod = 'cash';
+  state.saleCustomerId = '';
+  state.saleNotice = '';
   openSaleModal();
 }
 
@@ -492,7 +690,8 @@ function formDataObject(form) {
   const data = {};
   new FormData(form).forEach((value, key) => {
     if (value === '') return;
-    if (['cost_price','selling_price','stock_quantity','reorder_level','opening_balance','amount','discountAmount','taxAmount','amountPaid','quantity','unitPrice'].includes(key)) data[key] = Number(value);
+    if (key === 'track_stock') data[key] = value === 'true';
+    else if (['cost_price','selling_price','stock_quantity','reorder_level','opening_balance','amount','discountAmount','taxAmount','amountPaid','quantity','unitPrice'].includes(key)) data[key] = Number(value);
     else data[key] = value;
   });
   return data;
@@ -501,39 +700,57 @@ function formDataObject(form) {
 async function submitRecord(form) {
   const tableId = form.dataset.table;
   const data = formDataObject(form);
-  if (tableId === 'expenses' && data.expense_date) data.expense_date = new Date(`${data.expense_date}T12:00:00`).toISOString();
+  let reopenPos = false;
+  if (tableId === 'expenses' && data.expense_date) data.expense_date = new Date(data.expense_date + 'T12:00:00').toISOString();
   if (tableId === 'bookings') {
     if (data.starts_at) data.starts_at = new Date(data.starts_at).toISOString();
     if (data.ends_at) data.ends_at = new Date(data.ends_at).toISOString();
   }
+  if (tableId === 'products' && data.unit === 'service') data.track_stock = false;
   showBusy('Saving record…');
   try {
     await businessRequest('create_record', { tableId, data });
     document.querySelector('#modal-root').innerHTML = '';
-    setNotice('Record saved successfully.');
+    setNotice(tableId === 'products' ? 'Product saved. It is now available in Sales & POS.' : 'Record saved successfully.');
     await loadRecords(tableId);
+    if (tableId === 'products' && state.returnToSaleAfterProduct) {
+      reopenPos = true;
+      state.returnToSaleAfterProduct = false;
+    }
   } catch (error) { setNotice('', error.message); }
-  finally { finishBusy(); render(); }
+  finally {
+    finishBusy();
+    render();
+    if (reopenPos) {
+      try { await openSaleWithProducts(); }
+      catch (error) { setNotice('', error.message); render(); }
+    }
+  }
 }
 
 async function submitSale(form) {
-  const lineNodes = [...form.querySelectorAll('.sale-line')];
-  const items = lineNodes.map(line => ({ productId: line.querySelector('[name="productId"]')?.value, quantity: Number(line.querySelector('[name="quantity"]')?.value || 0) })).filter(item => item.productId && item.quantity > 0);
-  const fd = new FormData(form);
-  const amountPaidValue = fd.get('amountPaid');
+  if (!state.saleCart.length) throw new Error('Add at least one product to the sale.');
+  const totals = saleTotals();
+  if (totals.discount > totals.subtotal) throw new Error('Discount cannot exceed the subtotal.');
+  const received = state.saleAmountPaid === '' ? totals.total : Number(state.saleAmountPaid);
+  if (!Number.isFinite(received) || received < 0) throw new Error('Enter a valid amount received.');
+  if (state.salePaymentMethod !== 'cash' && received > totals.total) throw new Error('The amount received cannot exceed the total for this payment method.');
   const body = {
-    items,
-    discountAmount: Number(fd.get('discountAmount') || 0),
-    taxAmount: Number(fd.get('taxAmount') || 0),
-    paymentMethod: fd.get('paymentMethod') || 'cash'
+    items: state.saleCart.map(item => ({ productId: item.product.$id, quantity: item.quantity })),
+    discountAmount: totals.discount,
+    taxAmount: totals.tax,
+    amountPaid: Math.min(received, totals.total),
+    paymentMethod: state.salePaymentMethod || 'cash'
   };
-  if (amountPaidValue !== '') body.amountPaid = Number(amountPaidValue);
+  const customerId = document.querySelector('#pos-customer')?.value || '';
+  if (customerId) body.customerId = customerId;
   showBusy('Recording sale…');
   try {
-    await businessRequest('create_sale', body);
+    const result = await businessRequest('create_sale', body);
     document.querySelector('#modal-root').innerHTML = '';
+    state.saleCart = [];
     state.active = 'sales';
-    setNotice('Sale recorded successfully. Stock levels have been updated.');
+    setNotice('Sale ' + (result.sale?.sale_number || '') + ' recorded successfully. Stock levels have been updated.');
     await loadRecords('sales');
     await loadDashboard();
   } catch (error) { setNotice('', error.message); }
@@ -657,8 +874,15 @@ root.addEventListener('click', async event => {
     else if (action === 'clear-notice') { setNotice(); render(); }
     else if (action === 'new-record') openRecordModal(value);
     else if (action === 'new-sale') await openSaleWithProducts();
+    else if (action === 'pos-add-product') addProductToSale(target.dataset.id);
+    else if (action === 'pos-category') { state.saleCategory = value; renderSaleCatalog(); }
+    else if (action === 'pos-qty-up') changeSaleQuantity(target.dataset.id, 1);
+    else if (action === 'pos-qty-down') changeSaleQuantity(target.dataset.id, -1);
+    else if (action === 'pos-remove-item') { state.saleCart = state.saleCart.filter(item => item.product.$id !== target.dataset.id); renderSaleCatalog(); renderSaleCart(); }
+    else if (action === 'pos-clear-cart') { state.saleCart = []; renderSaleCatalog(); renderSaleCart(); }
+    else if (action === 'add-first-pos-product') { state.returnToSaleAfterProduct = true; await navigate('products'); openRecordModal('products'); }
     else if (action === 'new-invoice') await openInvoiceModal();
-    else if (action === 'close-modal') { if (target.classList.contains('modal-backdrop') || target.classList.contains('modal-close') || target.closest('.modal-actions')) document.querySelector('#modal-root').innerHTML = ''; }
+    else if (action === 'close-modal') { if (target.classList.contains('modal-backdrop') || target.classList.contains('modal-close') || target.closest('.modal-actions')) { document.querySelector('#modal-root').innerHTML = ''; state.returnToSaleAfterProduct = false; } }
     else if (action === 'adjust-stock') adjustStock(target.dataset.id, target.dataset.name);
     else if (action === 'invoice-payment') recordInvoicePayment(target.dataset.id, target.dataset.total, target.dataset.paid);
     else if (action === 'delete-record') await deleteRecord(target.dataset.table, target.dataset.id);
@@ -694,12 +918,22 @@ root.addEventListener('change', async event => {
     if (passwordInput) passwordInput.autocomplete = state.register ? 'new-password' : 'current-password';
     if (submitButton) submitButton.innerHTML = `${state.register ? 'Create account' : 'Sign in'} <span>→</span>`;
   }
+  if (event.target.name === 'unit' && event.target.form?.dataset.table === 'products') {
+    const stockToggle = event.target.form.querySelector('input[type="checkbox"][name="track_stock"]');
+    if (stockToggle) { stockToggle.disabled = event.target.value === 'service'; if (event.target.value === 'service') stockToggle.checked = false; }
+  }
+  if (event.target.id === 'pos-payment-method') { state.salePaymentMethod = event.target.value; renderSaleTotals(); }
+  if (event.target.id === 'pos-customer') state.saleCustomerId = event.target.value;
   if (event.target.id === 'business-switch') await switchBusiness(event.target.value);
 });
 
 root.addEventListener('input', event => {
   if (event.target.name === 'email' && event.target.form?.id === 'auth-form') state.authEmail = event.target.value;
   if (event.target.name === 'name' && event.target.form?.id === 'auth-form') state.authName = event.target.value;
+  if (event.target.id === 'pos-search') { state.saleSearch = event.target.value; renderSaleCatalog(); }
+  if (event.target.id === 'pos-discount') { state.saleDiscount = event.target.value; renderSaleTotals(); }
+  if (event.target.id === 'pos-tax') { state.saleTax = event.target.value; renderSaleTotals(); }
+  if (event.target.id === 'pos-amount-paid') { state.saleAmountPaid = event.target.value; renderSaleTotals(); }
   if (event.target.id === 'record-search') {
     state.search = event.target.value;
     const selection = event.target.selectionStart;
@@ -707,6 +941,14 @@ root.addEventListener('input', event => {
     render();
     const input = document.querySelector('#record-search');
     if (input) { input.focus(); input.setSelectionRange(selection, selection); }
+  }
+});
+
+root.addEventListener('keydown', event => {
+  if (event.target.id === 'pos-barcode' && event.key === 'Enter') {
+    event.preventDefault();
+    addSaleProductByCode(event.target.value);
+    event.target.value = '';
   }
 });
 
