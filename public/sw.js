@@ -1,4 +1,4 @@
-const CACHE = 'ethan-business-shell-v2-appwrite-positional-sdk';
+const CACHE = 'ethan-business-shell-v3-pos-catalog';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
