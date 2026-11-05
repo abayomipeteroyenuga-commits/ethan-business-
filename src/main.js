@@ -119,14 +119,17 @@ function parseExecution(execution) {
 }
 
 async function invoke(functionId, { path = '/', method = 'POST', body = null } = {}) {
-  const execution = await functions.createExecution({
+  // Appwrite JS SDK v18 uses positional arguments for createExecution.
+  const requestBody = body ? JSON.stringify(body) : '';
+  const requestHeaders = body ? { 'content-type': 'application/json' } : {};
+  const execution = await functions.createExecution(
     functionId,
+    requestBody,
+    false,
     path,
     method,
-    body: body ? JSON.stringify(body) : '',
-    async: false,
-    headers: body ? { 'content-type': 'application/json' } : {}
-  });
+    requestHeaders
+  );
   if (execution.status === 'failed' && !execution.responseBody) {
     throw new Error(execution.stderr || 'The business service could not complete this request.');
   }
@@ -439,7 +442,7 @@ function validateCredentials(email, password) {
 
 async function signIn(email, password) {
   validateCredentials(email, password);
-  await account.createEmailPasswordSession({ email, password });
+  await account.createEmailPasswordSession(email, password);
   state.user = await account.get();
   await loadMyBusinesses();
   if (state.business) await navigate('dashboard');
@@ -450,15 +453,15 @@ async function registerAccount(name, email, password) {
   validateCredentials(email, password);
   if (!name || name.trim().length < 2) throw new Error('Enter your full name.');
   if (password.length < 8) throw new Error('Your password must contain at least 8 characters.');
-  await account.create({ userId: ID.unique(), email, password, name: name.trim() });
-  await account.createEmailPasswordSession({ email, password });
+  await account.create(ID.unique(), email, password, name.trim());
+  await account.createEmailPasswordSession(email, password);
   state.user = await account.get();
   await loadMyBusinesses();
   render();
 }
 
 async function signOut() {
-  try { await account.deleteSession({ sessionId: 'current' }); } catch {}
+  try { await account.deleteSession('current'); } catch {}
   state.user = null; state.business = null; state.businesses = []; state.stats = null; state.records = [];
   state.active = 'dashboard'; state.register = false; state.search = ''; setNotice(); render();
 }
@@ -664,7 +667,7 @@ root.addEventListener('click', async event => {
       event.preventDefault();
       const email = document.querySelector('#auth-form [name="email"]')?.value?.trim();
       if (!email) throw new Error('Enter your email address first.');
-      await account.createRecovery({ email, url: `${location.origin}/` });
+      await account.createRecovery(email, `${location.origin}/`);
       alert('Password reset instructions have been sent, if the email address is registered.');
     }
     else if (action === 'add-sale-line') {
